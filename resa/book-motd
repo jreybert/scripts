@@ -1,0 +1,36 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use DateTime;
+use Term::ANSIColor;
+
+sub nice {
+  my ($dt) = @_;
+  return $dt->dmy("-")." ".$dt->hour()."H";
+}
+
+my $booking_file_path = "/var/lib/booking/bookings";
+my $now = DateTime->now;
+# Read booking file
+open(RESA,$booking_file_path) or die $!;
+# skip max id line
+<RESA>;
+while (my $line = <RESA>) {
+  my @tmp_line = split(" ", $line);
+  my $tmp_beg = DateTime->from_epoch(epoch => $tmp_line[0]);
+  my $tmp_end = DateTime->from_epoch(epoch => $tmp_line[1]);
+  my $tmp_user = $tmp_line[2];
+  if ($now >= $tmp_beg && $now <= $tmp_end) {
+    print color 'bold red';
+    print "\nWARNING: a booking is on board!\n";
+    print color 'reset';
+    last;
+  }
+  if ($tmp_beg > $now) {
+    print "\nNext booking: ".nice($tmp_beg)." -> ".nice($tmp_end)." : ".$tmp_user."\n";
+    last;
+  }
+}
+close RESA;

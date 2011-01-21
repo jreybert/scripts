@@ -1,0 +1,35 @@
+#!/bin/sh
+
+MOD_PATH=$HOME/.modules
+SKEL_FILE=$MOD_PATH/.skel
+
+if [ ! -e $MOD_PATH ]; then
+  echo "You don't have a .modules directory in your home"
+  exit
+fi
+
+if [ ! -r $SKEL_FILE ]; then
+  echo "You don't have a skeleton file (should be  $SKEL_FILE)"
+  exit
+fi
+
+if [ $# != 2 ]; then
+  echo "Usage: $0 prog_name prog_path"
+  exit
+fi
+
+# if module file is in subdirectory 
+#if [ $1 == */* ]; then
+#  prog_name=${1##*/}
+#  mkdir -p $MOD_PATH/$(echo $1 | cut -d"/" -f1)
+#  prog_name=$(echo $1 | cut -d"/" -f2)
+#else
+#  prog_name=$1
+#fi
+
+prog_name=$1
+MOD_FILE=$MOD_PATH/$1
+prog_path=$2
+
+sed -e "s/@PROG_NAME@/$prog_name/" -e "s/@PROG_PATH@/$prog_path/" $SKEL_FILE > $MOD_FILE
+

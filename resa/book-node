@@ -1,0 +1,445 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use DateTime;
+use Getopt::Long qw(:config no_getopt_compat);
+use Sys::Hostname;
+use Term::ANSIColor;
+
+my $now = DateTime->now;
+
+my $booking_file_path = "/var/lib/booking/bookings";
+my $mail_file_path = "/var/lib/booking/mails";
+
+my $user_login = getlogin;
+my $user_mail = 'none';
+my $host = hostname;
+
+# Initialization of the files
+
+unless (-e $booking_file_path) {
+  open(RESA, ">", $booking_file_path) or die $!;
+  print RESA "0";
+  close RESA;
+  chmod 0644, $booking_file_path;
+}
+unless (-e $mail_file_path) {
+  open(MAILS, ">", $mail_file_path) or die $!;
+  print MAILS "";
+  close MAILS;
+  chmod 0644, $mail_file_path;
+}
+
+sub Usage {
+  my $usage_msg = <<END_USAGE;
+Booking system usage for $host
+Options:
+  --book,   -b  : book $host for a given time
+  --cancel, -c  : cancel one of your booking
+  --mail,   -m  : automatically send a mail to the mailing list
+                  when booking or canceling a book
+  --list,   -l  : list the future bookings
+  --help,   -h  : display this message
+
+END_USAGE
+  print $usage_msg;
+  Usage_book();
+  Usage_cancel();
+}
+
+sub Usage_book {
+  my $usage_book_msg = <<END_USAGE;
+.:: Book ::.
+  $0 --book [--mail] begin_date end_date [your_email_address]
+      begin_date: dd-mm-yyyy-hh
+      end_date  : dd-mm-yyyy-hh
+         or     : Nh (add N hours)
+         or     : night
+         or     : we (week end)
+
+END_USAGE
+  print $usage_book_msg;
+}
+
+sub Usage_cancel {
+  my $usage_cancel_msg  = <<END_USAGE;
+.:: Cancel ::.
+  $0 --cancel book_id
+  You can find your book_id with the list
+
+END_USAGE
+  print $usage_cancel_msg;
+}
+
+sub sendEmail
+{
+  my ($to, $from, $subject, $message) = @_;
+  utf8::decode($message);  
+  my $sendmail = '/usr/lib/sendmail';
+  open(MAIL, "|$sendmail -oi -t");
+  print MAIL "From: $from\n";
+  print MAIL "To: $to\n";
+  print MAIL "Subject: $subject\n\n";
+  print MAIL "$message\n";
+  close(MAIL);
+}
+
+sub send_booking_mail {
+  my ($beg, $end) = @_;
+  my $nice_b = nice($beg);
+  my $nice_e = nice($end);
+  my $mail_message = <<END_MAIL;
+Bonjour,
+
+idrouille sera réservé de $nice_b à $nice_e.
+
+Merci de contacter $user_login à $user_mail en cas de problème.
+
+-- 
+L'ordinateur
+END_MAIL
+  sendEmail("opm2-idrouille\@lists.ligforge.imag.fr", $user_mail, "Réservation idrouille", $mail_message);
+}
+
+sub send_cancelling_mail {
+  my ($beg, $end) = @_;
+  my $nice_b = nice($beg);
+  my $nice_e = nice($end);
+  my $mail_message = <<END_MAIL;
+Bonjour,
+
+la reservation de idrouille de $nice_b à $nice_e a été annulé.
+
+Merci de contacter $user_login à $user_mail en cas de problème.
+
+-- 
+L'ordinateur
+END_MAIL
+  sendEmail("opm2-idrouille\@lists.ligforge.imag.fr", $user_mail, "Annulation réservation idrouille", $mail_message);
+}
+
+sub nice {
+  my ($dt) = @_;
+  return $dt->dmy("-")." ".$dt->hour()."H";
+}
+
+sub print_list {
+  open(RESA,$booking_file_path) or die $!;
+# skip max id line
+  <RESA>;
+  my @booking_list;
+  while (my $line = <RESA>) {
+    my @tmp_line = split(" ", $line);
+    my $tmp_beg = DateTime->from_epoch(epoch => $tmp_line[0]);
+    my $tmp_end = DateTime->from_epoch(epoch => $tmp_line[1]);
+    my $tmp_user = $tmp_line[2];
+    my $tmp_id = $tmp_line[3];
+    if ( $tmp_end > $now ) {
+      print nice($tmp_beg)." -> ".nice($tmp_end)." : ".$tmp_user." [".$tmp_id."]\n";
+    }
+  }
+  close RESA;
+}
+
+sub cancel_book {
+  my ($del_id) = @_;
+  my $found = 0;
+
+  open(RESA,$booking_file_path) or die $!;
+
+  my @data = <RESA>;
+  chomp @data;
+# begin at 1 to skip max id line
+  for (my $i = 1; $i < @data; $i++) {
+    my @line = split(" ", $data[$i]);
+    if ( $line[3] == $del_id ) {
+      if ( $line[2] eq $user_login ) {
+        my $tmp_beg = DateTime->from_epoch(epoch => $line[0]);
+        my $tmp_end = DateTime->from_epoch(epoch => $line[1]);
+        print "Booking ".nice($tmp_beg)." -> ".nice($tmp_end)." has been canceled\n";
+        splice (@data, $i, 1);
+      }
+      else {
+        print color 'bold red';
+        print "You can't cancel a booking which is not yours\n";
+        print color 'reset';      
+      }
+      $found = 1;
+      last;
+    }
+  }
+  close RESA;
+  if ( $found == 1 ) {
+    open(RESA, ">", $booking_file_path) or die $!;
+    foreach my $line (@data) {
+      print RESA "$line\n";
+    }
+    close RESA;
+  }
+  else {
+    print color 'bold red';
+    print "Booking $del_id does not exists\n";
+    print color 'reset';      
+  }
+}
+
+my $opt_book = 0;
+my $opt_list = 0;
+my $opt_del = 0;
+my $opt_help = 0;
+my $opt_mail = 0;
+my $opt_result = GetOptions (
+  "book|b!" => \$opt_book,
+  "list|l!" => \$opt_list,
+  "mail|m!" => \$opt_mail,
+  "cancel|c=i" => \$opt_del,
+  "help|h!" => \$opt_help);
+
+if ( $opt_list ) {
+  print_list();
+  exit;
+}
+elsif ( $opt_del ) {
+  cancel_book($opt_del);
+  exit;
+}
+elsif ( $opt_book ) {
+  node_book();
+  exit;
+}
+elsif ( $opt_help ) {
+  Usage();
+  exit;
+}
+Usage();
+exit;
+
+sub node_book {
+# ============================= Get arguments ===================================== #
+# ARGV[0]: begin booking (date)                                                     #
+# ARGV[1]: end booking (date, +[n]h, night, we)                                     #
+# ARGV[2]: mail (optional)                                                          #
+# ================================================================================= #
+
+
+  if ( @ARGV < 2 ) {
+    Usage_book();
+    exit;
+  }
+
+  my @split_beg = split('-', $ARGV[0]);
+  if (@split_beg != 4) {
+    print color 'bold red';
+    print "Begin booking date must be on the form dd-mm-yyyy-hh\n";
+    print color 'reset';      
+    Usage_book();
+    exit;
+  }
+
+# new_booking[0] = begin booking
+# new_booking[1] = end booking
+# new_booking[2] = user login
+# new_booking[3] = booking id
+  my @new_booking= ();
+  eval {
+    $new_booking[0] = DateTime->new(
+      year      => $split_beg[2],
+      month     => $split_beg[1],
+      day       => $split_beg[0],
+      hour      => $split_beg[3],
+    );
+    die Usage_book() if $@;
+  };
+
+  my $arg_end = $ARGV[1];
+
+# book for the night
+  if ( $arg_end eq "night") {
+    if ($new_booking[0]->hour() < 18 ) {
+      print color 'bold red';
+      print "A night booking must begin after 6pm\n";
+      print color 'reset';      
+      exit;
+    }
+    $new_booking[1]  = $new_booking[0]->clone->add( days => 1);
+    $new_booking[1]->set( hour => 6);
+  }
+# book for the week end
+  elsif ( $arg_end eq "we") {
+    if ($new_booking[0]->day_of_week() != 5 || $new_booking[0]->hour() < 18 ) {
+      print color 'bold red';
+      print "A week end booking must begin on friday, after 6pm\n";
+      print color 'reset';      
+      exit;
+    }
+    $new_booking[1]  = $new_booking[0]->clone->add( days => 3);
+    $new_booking[1]->set( hour => 6);
+  }
+# book for N hours
+  elsif ( $arg_end =~ m/(\d\d*)(h|H)/ ) {
+    my $add_hours = $1;
+    $new_booking[1]  = $new_booking[0]->clone->add( hours => $add_hours);
+  }
+  else {
+    my @split_end = split('-', $arg_end);
+    if (@split_end != 4) {
+      print color 'bold red';
+      print "End booking date must be on the form dd-mm-yyyy-hh\n";
+      print color 'reset';      
+      Usage();
+      exit;
+    }
+    eval {
+      $new_booking[1] = DateTime->new(
+        year      => $split_end[2],
+        month     => $split_end[1],
+        day       => $split_end[0],
+        hour      => $split_end[3],
+      );
+      die Usage_book() if $@;
+    };
+
+  }
+
+# check dates
+
+  if ( $new_booking[0] > $new_booking[1] ) {
+    print color 'bold red';
+    print "Error: begin booking date must be lower than end booking date.\n";
+    print color 'reset';      
+    print "begin booking date: ".nice($new_booking[0])."\n";
+    print "end booking date  : ".nice($new_booking[1])."\n";
+    exit;
+  }
+
+  $new_booking[2] = $user_login;
+
+  if ( @ARGV == 3 ) {
+    $user_mail = $ARGV[2];
+  }
+
+# ============================= File handling ===================================== #
+# 2 files: bookings, mails                                                             #
+# step 0: check mail exist for user
+# step 1: check files exist, create if not,                                                                #
+# step 2: parse bookings file                                              #
+# step 3: check no conflicts
+# step 4: add new booking, write in file
+# ================================================================================= #
+
+# Mail management:
+# 1. read the mail file, search for user login
+# if found:
+#   a- user did not provide mail address: add it
+#   b- user provided mail address: update it
+# if not found:
+#   a- user did not provide mail address: error
+#   b- user provided mail address: add it
+# 2. write the new data mail
+
+  my $found_mail = 0;
+  my $update_mail = 0;
+  open(MAILS,$mail_file_path) or die $!;
+  my @mail_data = <MAILS>;
+  chomp @mail_data;
+  for ( my $i = 0; $i < @mail_data; $i++) {
+    my ( $tmp_user, $tmp_mail ) = split(" ", $mail_data[$i]);
+    if ( $tmp_user eq $user_login ) {
+      if ( $user_mail eq 'none' ) {
+        $user_mail = $tmp_mail;
+      }
+      else {
+        $mail_data[$i] = "$user_login $user_mail";
+        $update_mail = 1;
+      }
+      $found_mail = 1;
+      last;
+    }
+  }
+  close MAILS;
+  if ( $found_mail == 0 ) {
+    if ( $user_mail eq 'none' ) {
+      print color 'bold red';
+      print "You must provide your email address the first time\n";
+      print color 'reset';      
+      Usage_book();
+      exit;
+    }
+    else {
+      push(@mail_data, "$user_login $user_mail");
+      $update_mail = 1;
+    }
+  }
+
+  if ( $update_mail == 1) {
+    open(MAILS, ">", $mail_file_path) or die $!;
+    foreach my $line (@mail_data) {
+      print MAILS "$line\n";
+    }
+    close MAILS;
+  }
+
+# Booking management
+# 1. Read bookings file
+#   a- first line is max_id
+#   b- format: epoch_date epoch_date user_login book_id
+
+  open(RESA,$booking_file_path) or die $!;
+
+# get max booking id, increment it, and give it to new booking
+  $new_booking[3] = <RESA>;
+  $new_booking[3]++;
+
+  my @booking_list;
+  while (my $line = <RESA>) {
+    chomp $line;
+    my @tmp_line = split(" ", $line);
+    my @tmp_bookings;
+    $tmp_bookings[0] = DateTime->from_epoch(epoch => $tmp_line[0]);  # beg booking
+    $tmp_bookings[1] = DateTime->from_epoch(epoch => $tmp_line[1]);  # end booking
+    $tmp_bookings[2] = $tmp_line[2];                                 # user booking
+    $tmp_bookings[3] = $tmp_line[3];                                 # booking id
+    push(@booking_list, \@tmp_bookings);
+  }
+
+  close RESA;
+
+# Check there is no conflict wit existing booking
+
+  foreach my $tmp_booking (@booking_list) {
+    if ( ($new_booking[0] >= @$tmp_booking[0] && $new_booking[0] <= @$tmp_booking[1])
+      || ($new_booking[1] >= @$tmp_booking[0] && $new_booking[1] <= @$tmp_booking[1]) ) {
+      print color 'bold red';
+      print "Conflict booking:\n";
+      print color 'reset';      
+      print nice($new_booking[0])." -> ".nice($new_booking[1])." : $new_booking[2]\n".nice(@$tmp_booking[0])." -> ".nice(@$tmp_booking[1])." : @$tmp_booking[2]\n";
+      exit;
+    }
+  }
+
+# if not, add new booking and sort the booking list
+
+  push(@booking_list, \@new_booking);
+  @booking_list = sort{ $a->[0] cmp $b->[0] }(@booking_list);
+
+# write the sorted booking list
+
+  open(RESA, ">", $booking_file_path) or die $!;
+  print RESA $new_booking[3]."\n";
+  foreach my $booking (@booking_list) {
+#  print @$booking[0]." -> ".@$booking[1]." : ".@$booking[2]."\n";
+    print RESA @$booking[0]->epoch()." ".@$booking[1]->epoch()." ".@$booking[2]." ".@$booking[3]."\n";
+  }
+  close RESA;
+
+  print color 'bold red';
+  print "New booking:\n";
+  print color 'reset';      
+  print nice($new_booking[0])." -> ".nice($new_booking[1])." [".$new_booking[3]."]\n";
+
+  if ( $opt_mail ) {
+    send_booking_mail($new_booking[0], $new_booking[1]);
+  }
+}

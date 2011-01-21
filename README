@@ -1,0 +1,34 @@
+A repository to gather my scripts. Most of them will probably be useless for anyone but me.
+
+colorgcc
+========
+
+colorgcc is a wrapper to colorize the output from compilers whose messages match the "gcc" format.
+In a directory that occurs in your PATH _before_ the directory where the compiler lives, create a softlink to colorgcc for each compiler you want to colorize.
+
+generate_comp_links.sh is a bash script to generate links to compilers.
+
+gcc_change.sh
+=============
+
+A script to change the links /usr/bin/gcc and g++ to the wanted version.
+
+imdb_tag
+========
+
+Perl script to generate a static html page referencing all the movie file in a directory with imdb information (require IMDB perl package).
+
+module_create
+=============
+
+Script to almost create a module preference file (http://modules.sourceforge.net/)
+
+resa
+====
+
+perl script to reserve a shared computer.
+
+switch-vtune-ptu
+================
+
+script to switch between vtune and ptu environments.
