@@ -11,7 +11,7 @@ sub nice {
   return $dt->dmy("-")." ".$dt->hour()."H";
 }
 
-my $booking_file_path = "/var/lib/book-node/bookings";
+my $booking_file_path = "@BOOKING_FILE_PATH@";
 my $now = DateTime->now;
 # Read booking file
 open(RESA,$booking_file_path) or die $!;

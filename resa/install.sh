@@ -7,12 +7,27 @@ then
 fi
 
 book_user="book-node"
-book_path="book-node"
+
+book_node_path="/usr/local/bin/book-node"
+book_motd_path="/usr/local/bin/book-motd"
+
+book_files_path="/var/lib/book-node/"
+book_file_booking="${book_files_path}bookings"
+book_file_mails="${book_files_path}mails"
+
+cp ./book-node{.am,}
+cp ./book-motd{.am,}
+
+sed -i "s,@BOOKING_FILE_PATH@,$book_file_booking,g" ./book-node
+sed -i "s,@MAIL_FILE_PATH@,$book_file_mails,g" ./book-node
+sed -i "s,@BOOKING_FILE_PATH@,$book_file_booking,g" ./book-motd
+sed -i "s,@MAIL_FILE_PATH@,$book_file_mails,g" ./book-motd
 
 # we do not want book-motd appears in autocomplete
 chmod -x book-motd
 
-cp book-node book-motd /usr/local/bin/
+cp ./book-node $book_node_path
+cp ./book-motd $book_motd_path
 
 if ! grep "^$book_user" /etc/passwd > /dev/null
 then
@@ -30,20 +45,20 @@ if grep "^[^#].*/etc/profile" /etc/profile > /dev/null && [ -d /etc/profile.d ]
 then
   cat > /etc/profile.d/book-motd.sh << EOF
 # book-node prompt at startup
-if [ -r /usr/local/bin/book-motd ] && which perl > /dev/null
+if [ -r $book_motd_path ] && which perl > /dev/null
 then
-  perl /usr/local/bin/book-motd
+  perl $book_motd_path
 fi
 EOF
   echo "  /etc/profile.d/book-motd.sh startup script created"
 else
-  if ! grep "^[^#].*perl /usr/local/bin/book-motd" /etc/profile > /dev/null
+  if ! grep "^[^#].*perl $book_motd_path" /etc/profile > /dev/null
   then
     cat >> /etc/profile << EOF
 # book-node prompt at startup
-if [ -r /usr/local/bin/book-motd ] && which perl > /dev/null
+if [ -r $book_motd_path ] && which perl > /dev/null
 then
-  perl /usr/local/bin/book-motd
+  perl $book_motd_path
 fi
 EOF
     echo "  Script call added in /etc/profile"
@@ -53,17 +68,17 @@ EOF
 fi
 
 
-chown $book_user:$book_user /usr/local/bin/book-node
-chmod u+s /usr/local/bin/book-node
+chown $book_user:$book_user $book_node_path
+chmod u+s $book_node_path
 
-echo "Set suid to /usr/local/bin/book-node"
+echo "Set suid to $book_node_path"
 
-mkdir -p /var/lib/book-node/
-touch /var/lib/book-node/bookings 
-touch /var/lib/book-node/mails
+mkdir -p $book_files_path
+touch $book_file_booking
+touch $book_file_mails
 
-chown $book_user:$book_user /var/lib/book-node/ 
-chown $book_user:$book_user /var/lib/book-node/bookings 
-chown $book_user:$book_user /var/lib/book-node/mails 
+chown $book_user:$book_user $book_files_path
+chown $book_user:$book_user $book_file_booking
+chown $book_user:$book_user $book_file_mails
 
-echo "Create /var/lib/book-node/ files"
+echo "Create $book_files_path files"

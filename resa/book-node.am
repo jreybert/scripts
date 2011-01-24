@@ -9,10 +9,11 @@ use Sys::Hostname;
 use Term::ANSIColor;
 
 my $now = DateTime->now;
+my $prog_name = $0;
+$prog_name =~ s/^.*\///;
 
-
-my $booking_file_path = "/var/lib/book-node/bookings";
-my $mail_file_path = "/var/lib/book-node/mails";
+my $booking_file_path = "@BOOKING_FILE_PATH@";
+my $mail_file_path = "@MAIL_FILE_PATH@";
 
 my $user_login = getlogin;
 my $user_mail = 'none';
@@ -38,9 +39,9 @@ sub Usage {
 Booking system usage for $host
 Options:
   --book,   -b  : book $host for a given time
-  --cancel, -c  : cancel one of your booking
-  --mail,   -m  : automatically send a mail to the mailing list
+    --mail, -m  : automatically send a mail to the mailing list
                   when booking or canceling a book
+  --cancel, -c  : cancel one of your booking
   --list,   -l  : list the future bookings
   --help,   -h  : display this message
 
@@ -53,14 +54,15 @@ END_USAGE
 sub Usage_book {
   my $usage_book_msg = <<END_USAGE;
 .:: Book ::.
-  $0 --book [--mail] begin_date end_date [your_email_address]
+  $prog_name -b [-m] tonight [email_address]
+    or
+  $prog_name -b [-m] begin_date end_date [email_address]
       begin_date: dd-mm-yyyy-hh
       end_date  : dd-mm-yyyy-hh
          or     : Nh (add N hours)
          or     : night
          or     : we (week end)
-  OR
-  $0 --book [--mail] tonight [your_email_address]
+  NB: you must provide your mail address the first time
 
 END_USAGE
   print $usage_book_msg;
@@ -69,8 +71,8 @@ END_USAGE
 sub Usage_cancel {
   my $usage_cancel_msg  = <<END_USAGE;
 .:: Cancel ::.
-  $0 --cancel book_id
-  You can find your book_id with the list
+  $prog_name -c [-m] book_id
+  NB: you can find your book_id with the list
 
 END_USAGE
   print $usage_cancel_msg;
