@@ -2,7 +2,7 @@
 
 if [ "$(whoami)" != 'root' ]
 then
-  echo you are using a non-privileged account
+  echo "You need root permission to run the installation script"
   exit 1
 fi
 
