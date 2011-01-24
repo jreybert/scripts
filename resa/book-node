@@ -10,8 +10,9 @@ use Term::ANSIColor;
 
 my $now = DateTime->now;
 
-my $booking_file_path = "/var/lib/booking/bookings";
-my $mail_file_path = "/var/lib/booking/mails";
+
+my $booking_file_path = "/var/lib/book-node/bookings";
+my $mail_file_path = "/var/lib/book-node/mails";
 
 my $user_login = getlogin;
 my $user_mail = 'none';
@@ -19,18 +20,18 @@ my $host = hostname;
 
 # Initialization of the files
 
-unless (-e $booking_file_path) {
-  open(RESA, ">", $booking_file_path) or die $!;
-  print RESA "0";
-  close RESA;
-  chmod 0644, $booking_file_path;
-}
-unless (-e $mail_file_path) {
-  open(MAILS, ">", $mail_file_path) or die $!;
-  print MAILS "";
-  close MAILS;
-  chmod 0644, $mail_file_path;
-}
+#unless (-e $booking_file_path) {
+#  open(RESA, ">", $booking_file_path) or die $!;
+#  print RESA "0";
+#  close RESA;
+#  chmod 0644, $booking_file_path;
+#}
+#unless (-e $mail_file_path) {
+#  open(MAILS, ">", $mail_file_path) or die $!;
+#  print MAILS "";
+#  close MAILS;
+#  chmod 0644, $mail_file_path;
+#}
 
 sub Usage {
   my $usage_msg = <<END_USAGE;
@@ -58,6 +59,8 @@ sub Usage_book {
          or     : Nh (add N hours)
          or     : night
          or     : we (week end)
+  OR
+  $0 --book [--mail] tonight [your_email_address]
 
 END_USAGE
   print $usage_book_msg;
@@ -218,108 +221,129 @@ exit;
 
 sub node_book {
 # ============================= Get arguments ===================================== #
+# ARGV[0]: tonight                                                                  #
+# ARGV[1]: mail (optional)                                                          #
+# OR                                                                                #
 # ARGV[0]: begin booking (date)                                                     #
 # ARGV[1]: end booking (date, +[n]h, night, we)                                     #
 # ARGV[2]: mail (optional)                                                          #
 # ================================================================================= #
-
-
-  if ( @ARGV < 2 ) {
-    Usage_book();
-    exit;
-  }
-
-  my @split_beg = split('-', $ARGV[0]);
-  if (@split_beg != 4) {
-    print color 'bold red';
-    print "Begin booking date must be on the form dd-mm-yyyy-hh\n";
-    print color 'reset';      
-    Usage_book();
-    exit;
-  }
 
 # new_booking[0] = begin booking
 # new_booking[1] = end booking
 # new_booking[2] = user login
 # new_booking[3] = booking id
   my @new_booking= ();
-  eval {
-    $new_booking[0] = DateTime->new(
-      year      => $split_beg[2],
-      month     => $split_beg[1],
-      day       => $split_beg[0],
-      hour      => $split_beg[3],
-    );
-    die Usage_book() if $@;
-  };
 
-  my $arg_end = $ARGV[1];
+# if shortcut tonight is used
+# TODO: ugly copy and paste, refactoring needed here
+  if ( @ARGV != 0 && $ARGV[0] =~ m/tonight/i ) {
+    $new_booking[0] = DateTime->now;
+    $new_booking[0]->set_hour(18);
+    $new_booking[0]->truncate( to => 'hour' ) ;
 
-# book for the night
-  if ( $arg_end eq "night") {
-    if ($new_booking[0]->hour() < 18 ) {
-      print color 'bold red';
-      print "A night booking must begin after 6pm\n";
-      print color 'reset';      
-      exit;
-    }
     $new_booking[1]  = $new_booking[0]->clone->add( days => 1);
     $new_booking[1]->set( hour => 6);
-  }
-# book for the week end
-  elsif ( $arg_end eq "we") {
-    if ($new_booking[0]->day_of_week() != 5 || $new_booking[0]->hour() < 18 ) {
-      print color 'bold red';
-      print "A week end booking must begin on friday, after 6pm\n";
-      print color 'reset';      
-      exit;
+    $new_booking[2] = $user_login;
+
+    if ( @ARGV == 2 ) {
+      $user_mail = $ARGV[1];
     }
-    $new_booking[1]  = $new_booking[0]->clone->add( days => 3);
-    $new_booking[1]->set( hour => 6);
   }
-# book for N hours
-  elsif ( $arg_end =~ m/(\d\d*)(h|H)/ ) {
-    my $add_hours = $1;
-    $new_booking[1]  = $new_booking[0]->clone->add( hours => $add_hours);
-  }
+# else
   else {
-    my @split_end = split('-', $arg_end);
-    if (@split_end != 4) {
-      print color 'bold red';
-      print "End booking date must be on the form dd-mm-yyyy-hh\n";
-      print color 'reset';      
-      Usage();
+
+    if ( @ARGV < 2 ) {
+      Usage_book();
       exit;
     }
+
+    my @split_beg = split('-', $ARGV[0]);
+    if (@split_beg != 4) {
+      print color 'bold red';
+      print "Begin booking date must be on the form dd-mm-yyyy-hh\n";
+      print color 'reset';      
+      Usage_book();
+      exit;
+    }
+
     eval {
-      $new_booking[1] = DateTime->new(
-        year      => $split_end[2],
-        month     => $split_end[1],
-        day       => $split_end[0],
-        hour      => $split_end[3],
+      $new_booking[0] = DateTime->new(
+        year      => $split_beg[2],
+        month     => $split_beg[1],
+        day       => $split_beg[0],
+        hour      => $split_beg[3],
       );
       die Usage_book() if $@;
     };
 
-  }
+    my $arg_end = $ARGV[1];
+
+# book for the night
+    if ( $arg_end =~ m/night/i ) {
+      if ($new_booking[0]->hour() < 18 ) {
+        print color 'bold red';
+        print "A night booking must begin after 6pm\n";
+        print color 'reset';      
+        exit;
+      }
+      $new_booking[1]  = $new_booking[0]->clone->add( days => 1);
+      $new_booking[1]->set( hour => 6);
+    }
+# book for the week end
+    elsif ( $arg_end =~ m/we/i ) {
+      if ($new_booking[0]->day_of_week() != 5 || $new_booking[0]->hour() < 18 ) {
+        print color 'bold red';
+        print "A week end booking must begin on friday, after 6pm\n";
+        print color 'reset';      
+        exit;
+      }
+      $new_booking[1]  = $new_booking[0]->clone->add( days => 3);
+      $new_booking[1]->set( hour => 6);
+    }
+# book for N hours
+    elsif ( $arg_end =~ m/(\d\d*)(h|H)/ ) {
+      my $add_hours = $1;
+      $new_booking[1]  = $new_booking[0]->clone->add( hours => $add_hours);
+    }
+    else {
+      my @split_end = split('-', $arg_end);
+      if (@split_end != 4) {
+        print color 'bold red';
+        print "End booking date must be on the form dd-mm-yyyy-hh\n";
+        print color 'reset';      
+        Usage();
+        exit;
+      }
+      eval {
+        $new_booking[1] = DateTime->new(
+          year      => $split_end[2],
+          month     => $split_end[1],
+          day       => $split_end[0],
+          hour      => $split_end[3],
+        );
+        die Usage_book() if $@;
+      };
+
+    }
 
 # check dates
 
-  if ( $new_booking[0] > $new_booking[1] ) {
-    print color 'bold red';
-    print "Error: begin booking date must be lower than end booking date.\n";
-    print color 'reset';      
-    print "begin booking date: ".nice($new_booking[0])."\n";
-    print "end booking date  : ".nice($new_booking[1])."\n";
-    exit;
+    if ( $new_booking[0] > $new_booking[1] ) {
+      print color 'bold red';
+      print "Error: begin booking date must be lower than end booking date.\n";
+      print color 'reset';      
+      print "begin booking date: ".nice($new_booking[0])."\n";
+      print "end booking date  : ".nice($new_booking[1])."\n";
+      exit;
+    }
+
+    $new_booking[2] = $user_login;
+
+    if ( @ARGV == 3 ) {
+      $user_mail = $ARGV[2];
+    }
   }
-
-  $new_booking[2] = $user_login;
-
-  if ( @ARGV == 3 ) {
-    $user_mail = $ARGV[2];
-  }
-
 # ============================= File handling ===================================== #
 # 2 files: bookings, mails                                                             #
 # step 0: check mail exist for user
@@ -347,7 +371,7 @@ sub node_book {
   for ( my $i = 0; $i < @mail_data; $i++) {
     my ( $tmp_user, $tmp_mail ) = split(" ", $mail_data[$i]);
     if ( $tmp_user eq $user_login ) {
-      if ( $user_mail eq 'none' ) {
+      if ( $user_mail =~ m/none/ ) {
         $user_mail = $tmp_mail;
       }
       else {
@@ -360,7 +384,7 @@ sub node_book {
   }
   close MAILS;
   if ( $found_mail == 0 ) {
-    if ( $user_mail eq 'none' ) {
+    if ( $user_mail =~ m/none/i ) {
       print color 'bold red';
       print "You must provide your email address the first time\n";
       print color 'reset';      
