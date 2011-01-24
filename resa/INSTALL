@@ -1,0 +1,19 @@
+Required:
+=========
+
+DateTime perl module
+perl-suid
+
+To install, use the install.pl script (you must be root). It does the following:
+ - copy scripts in /usr/local/bin
+ - create book-node user and group
+ - chmod +s book-node script
+ - create and set owner for /var/lib/book-node/ directory
+
+book-node needs DateTime perl module to work:
+ - you can find it here: http://search.cpan.org/~drolsky/DateTime/
+ - if you have cpanm, you only need one line: % cpanm DateTime
+ - alternatively, if your CPAN shell is set up, you should just be able to do:
+    % cpan DateTime
+ - or you can simply install with apt: apt-get install libdatetime-perl
+

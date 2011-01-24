@@ -1,0 +1,5 @@
+This script allows you to easily manage reservation on a shared computer. Users can add a reservation, delete an old one, see all pending reservations etc...
+
+For now, nothing is blocked during a reservation, users are just notified that a reservation is running.
+
+
