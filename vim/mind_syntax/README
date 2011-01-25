@@ -1,0 +1,4 @@
+This vim plugin add syntax coloration for mind files:
+
+ - adl,idt,itf files: there are an extension of idl files. idl syntax is already defined in vim package. We only extend this syntax. We also link adl, itf, idt extension with idl syntax.
+ - cpl files: these are implementation files of components. They are C files, with some added keywords. We check if some keywordds are present with Mind_or_SimpleC function (loaded for each C file). If it is the case, we extend C syntax coloration with defined keywords.
