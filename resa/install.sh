@@ -31,9 +31,9 @@ cp ./book-motd $book_motd_path
 
 if ! grep "^$book_user" /etc/passwd > /dev/null
 then
-#if [[ $user_exists ne 1 ]]; then
 # create book-node user and group
-  useradd -s /bin/false -MU $book_user
+# -s is the shell, -M does not create home folder (not supported in every system), -U create a user group
+  useradd -s /bin/false -U $book_user
   echo "User book-node created"
 else
   echo "User book-node already exists"
