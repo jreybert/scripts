@@ -1,0 +1,18 @@
+#%Module -*- tcl -*-
+# Genrerated by skelgen
+
+set	prog_name   @PROG_NAME@		
+
+proc ModulesHelp { } {
+	global prdctversion PRDCT
+	puts stderr "\tAdds $prog_name to your environment variables"
+	puts stderr "\tThis includes libraries and binaries that come"
+	puts stderr "\twith the $prog_name package."
+}
+
+module-whatis	"adds $prog_name to your environment variables"
+
+set prog_path   @PROG_PATH@
+
+prepend-path  PATH                $prog_path/bin
+prepend-path	LD_LIBRARY_PATH	    $prog_path/lib
